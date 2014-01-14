@@ -36,7 +36,7 @@ int main(int argc, const char *argv[])
 {
     char map_fn[64];
     FILE *map_fh;
-    char c;
+    int c;
     char buf[BUFLEN];
     procmap map;
     pid_t pid = 0;
@@ -63,13 +63,14 @@ int main(int argc, const char *argv[])
 
                 break;
             case 'p':
+                printf("setting pid\n");
                 pid = (pid_t)atoi(optarg);
                 break;
             case 'h':
                 usage();
                 break;
-            case '?':
-                if (optopt == 'd')
+            default:
+                if (optopt == 'd' || optopt == 'p')
                     fprintf (stderr, "Option -%c requires an argument.\n", optopt);
                 else if (isprint (optopt))
                     fprintf (stderr, "Unknown option `-%c'.\n", optopt);
@@ -78,8 +79,6 @@ int main(int argc, const char *argv[])
                             "Unknown option character `\\x%x'.\n",
                             optopt);
                 return 1;
-            default:
-                abort ();
         }
     }
 
