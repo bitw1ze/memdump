@@ -30,6 +30,31 @@ $ strings *.dump | grep your_password
 your_password
 </pre>
 
+## What about Android? (YMMV)
+
+You need the Android NDK with your platform's gcc binary in your PATH. Change
+architecture as needed. This may not work on all devices and kernel versions,
+but it worked for me on Android 4.4 on an emulated Nexus 4. You must be root on
+your Android device to run memdump.
+
+<pre>
+$ arm-linux-gnueabi-gcc memdump.c -o memdump -march=armv7-a -static
+$ adb push memdump /data/local/tmp
+$ adb shell
+# cd /data/local/tmp
+# ps
+# ./memdump -d dumptest -a -p &lt;pid&gt;
+# ls dumptest
+a6895000-a6897000.dump
+a6898000-a6995000.dump
+a6995000-a699b000.dump
+a699c000-a6a99000.dump
+a6a99000-a6a9f000.dump
+a6aa0000-a6b9d000.dump
+a6b9d000-a6ba3000.dump
+...
+</pre>
+
 # Contribute
 
 Feel free to clean up the code or add a feature in a pull request. Let me know
