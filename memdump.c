@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <stdbool.h>
+#include <time.h>
 #include "memdump.h"
 
 void usage() {
@@ -59,6 +60,7 @@ int main(int argc, const char *argv[])
                     usage();
                 }
                 strncpy(opt_dirname, optarg, strlen(optarg));
+
                 break;
             case 'p':
                 pid = (pid_t)atoi(optarg);
@@ -84,8 +86,17 @@ int main(int argc, const char *argv[])
     if (pid <= 0) {
         fprintf(stderr, "Must specify pid\n!");
         usage();
-    } else if (!(opt_allsegments | opt_stack | opt_heap)) {
+    }
+    if (!(opt_allsegments | opt_stack | opt_heap)) {
         fprintf(stderr, "Must choose section(s) of memory to dump\n");
+    }
+    if (!opt_customdir) {
+        snprintf(opt_dirname, sizeof(opt_dirname), "%d-%d", (int)pid, (int)time(NULL));
+    }
+
+    if (mkdir(opt_dirname, 0755)) {
+        perror("mkdir");
+        exit(errno);
     }
 
     map.count = 0;
@@ -103,9 +114,7 @@ int main(int argc, const char *argv[])
         exit(errno);
     }
 
-    procmap_record *it, tmp;
-    it = &map.records[0];
-
+    procmap_record tmp;
     while (fgets(buf, sizeof(buf), map_fh) && map.count < MAX_RECORDS)
     {
         buf[strlen(buf)-1] = 0;
@@ -131,7 +140,10 @@ int main(int argc, const char *argv[])
         fprintf(stderr, "[warn] max segments exceeded, not dumping any more");
     }
 
+    procmap_record *it;
+    it = &map.records[0];
     int i;
+
     for (i=0; i<map.count; i++) {
         it = &map.records[i];
 
@@ -156,15 +168,12 @@ int main(int argc, const char *argv[])
 
             data -= segment_sz;
 
-            size_t fnsize = atoi(ADDRLEN)*2+sizeof(ADDRSEP)+sizeof(SUFFIX)+1;
-            char *dump_fn = calloc(fnsize, 1);
-            if (!dump_fn) {
-                perror("calloc");
-                exit(errno);
-            }
-            snprintf(dump_fn, fnsize, DUMP_FMT, it->begin, it->end);
+            char dump_fn[FILENAME_MAX];
+            snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, opt_dirname, it->begin, it->end);
+#ifdef DEBUG
+            printf("Created file: %s\n", dump_fn);
+#endif
             FILE *dump_fh = fopen(dump_fn, "wb");
-            free(dump_fn);
             if (!dump_fh) {
                 perror("fopen");
                 exit(errno);
