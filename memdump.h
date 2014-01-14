@@ -14,10 +14,11 @@
 
 #define WORD sizeof(long)
 #define BUFLEN 4096
+#define MAX_RECORDS 4096 
 #define SUFFIX ".dump"
 #define ADDRSEP "-"
 #define MAP_FMT "%0"ADDRLEN"lx"ADDRSEP"%0"ADDRLEN"lx %c%c%c%c %0"ADDRLEN"llx %02x:%02x %lu %255s"
-#define MAX_RECORDS 4096 
+#define DUMP_FMT "%0"ADDRLEN"lx-%0"ADDRLEN"lx"SUFFIX
 
 typedef struct __procmap_record {
     long begin;
@@ -30,7 +31,7 @@ typedef struct __procmap_record {
     unsigned int dev_major;
     unsigned int dev_minor;
     unsigned long inode;
-    char path[256];
+    char info[256];
 } procmap_record;
 
 typedef struct __procmap {

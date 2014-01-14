@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <unistd.h>
+#include <ctype.h>
 #include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -12,24 +13,79 @@
 #include "memdump.h"
 
 void usage() {
-    fprintf(stderr, "Usage: ./memdump [opts] <pid>\n");
+    fprintf(stderr, 
+            "Usage: ./memdump [opts] -p <pid>\n\n"
+            "Options:\n"
+            "   -a              dump all segments\n"
+            "   -b              dump the stack\n"
+            "   -c              dump the heap\n"
+            "   -d <dir>        save dumps to custom directory <dir>\n"
+            "   -p <pid>        pid of the process to dump\n"
+            "   -h              this menu\n");
     exit(1);
 }
 
-bool opt_stack = true;
-bool opt_heap = true;
-bool opt_all = false;
+bool opt_allsegments = false;
+bool opt_heap = false;
+bool opt_stack = false;
+bool opt_customdir = false;
+char opt_dirname[FILENAME_MAX];
 
 int main(int argc, const char *argv[])
 {
-    char *fn;
-    FILE *fh;
+    char map_fn[64];
+    FILE *map_fh;
+    char c;
     char buf[BUFLEN];
     procmap map;
-    pid_t pid;
+    pid_t pid = 0;
 
-    if (argc != 2 || (pid = (pid_t)atoi(argv[1])) <= 0) {
+    opterr = 0;
+
+    while ((c = getopt (argc, (char * const *)argv, "abcdp:h")) != -1) {
+        switch (c) {
+            case 'a':
+                opt_allsegments = true;
+                break;
+            case 'b':
+                opt_stack = true;
+                break;
+            case 'c':
+                opt_heap = true;
+                break;
+            case 'd':
+                opt_customdir = true;
+                if (strlen(optarg) >= sizeof(opt_dirname)) {
+                    usage();
+                }
+                strncpy(opt_dirname, optarg, strlen(optarg));
+                break;
+            case 'p':
+                pid = (pid_t)atoi(optarg);
+                break;
+            case 'h':
+                usage();
+                break;
+            case '?':
+                if (optopt == 'd')
+                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
+                else if (isprint (optopt))
+                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
+                else
+                    fprintf (stderr,
+                            "Unknown option character `\\x%x'.\n",
+                            optopt);
+                return 1;
+            default:
+                abort ();
+        }
+    }
+
+    if (pid <= 0) {
+        fprintf(stderr, "Must specify pid\n!");
         usage();
+    } else if (!(opt_allsegments | opt_stack | opt_heap)) {
+        fprintf(stderr, "Must choose section(s) of memory to dump\n");
     }
 
     map.count = 0;
@@ -40,36 +96,34 @@ int main(int argc, const char *argv[])
         exit(errno);
     }
 
-    size_t len = strlen(argv[1]) + strlen("/proc/") + strlen("/maps");
-    fn = calloc(len+1, 1);
-    if (!fn) {
-        perror("calloc");
-        exit(errno);
-    }
-    snprintf(fn, len+1, "/proc/%s/maps", argv[1]);
-
-    fh = fopen(fn, "r");
-    if (!fh) {
-        printf("Failed to open %s\n", fn);
+    snprintf(map_fn, sizeof(map_fn), "/proc/%d/maps", pid);
+    map_fh = fopen(map_fn, "r");
+    if (!map_fh) {
+        printf("Failed to open %s\n", map_fn);
         exit(errno);
     }
 
     procmap_record *it, tmp;
     it = &map.records[0];
 
-    while (fgets(buf, sizeof(buf), fh) && map.count < MAX_RECORDS)
+    while (fgets(buf, sizeof(buf), map_fh) && map.count < MAX_RECORDS)
     {
         buf[strlen(buf)-1] = 0;
         sscanf((const char *)buf, MAP_FMT, &tmp.begin, &tmp.end, &tmp.read,
                 &tmp.write, &tmp.exec, &tmp.q, &tmp.offset, &tmp.dev_major,
-                &tmp.dev_minor, &tmp.inode, tmp.path);
+                &tmp.dev_minor, &tmp.inode, tmp.info);
 #ifdef DEBUG
         printf(MAP_FMT "\n", tmp.begin, tmp.end, tmp.read, tmp.write, tmp.exec,
                 tmp.q, tmp.offset, tmp.dev_major, tmp.dev_minor, tmp.inode,
-                tmp.path); 
+                tmp.info); 
 #endif
+        bool doit = false;
         if (tmp.read == 'r') {
-            memcpy(&map.records[map.count++], &tmp, sizeof(procmap_record));
+            doit |= opt_allsegments;
+            doit |= (opt_stack && !strcmp(tmp.info, "[stack]"));
+            doit |= (opt_heap && !strcmp(tmp.info, "[heap]"));
+            if (doit)
+                memcpy(&map.records[map.count++], &tmp, sizeof(procmap_record));
         }
     }
 
@@ -103,20 +157,21 @@ int main(int argc, const char *argv[])
             data -= segment_sz;
 
             size_t fnsize = atoi(ADDRLEN)*2+sizeof(ADDRSEP)+sizeof(SUFFIX)+1;
-            char *fn = calloc(fnsize, 1);
-            if (!fn) {
+            char *dump_fn = calloc(fnsize, 1);
+            if (!dump_fn) {
                 perror("calloc");
                 exit(errno);
             }
-            snprintf(fn, fnsize, "%0"ADDRLEN"lx-%0"ADDRLEN"lx"SUFFIX, it->begin, it->end);
-            FILE *fout = fopen(fn, "wb");
-            if (!fout) {
+            snprintf(dump_fn, fnsize, DUMP_FMT, it->begin, it->end);
+            FILE *dump_fh = fopen(dump_fn, "wb");
+            free(dump_fn);
+            if (!dump_fh) {
                 perror("fopen");
                 exit(errno);
             }
-            fwrite((const void *)data, segment_sz, 1, fout);
+            fwrite((const void *)data, segment_sz, 1, dump_fh);
             free(data);
-            fclose(fout);
+            fclose(dump_fh);
         }
     }
     if (ptrace(PTRACE_DETACH, map.pid, NULL, NULL)) {
