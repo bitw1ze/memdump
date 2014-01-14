@@ -43,7 +43,7 @@ int main(int argc, const char *argv[])
 
     opterr = 0;
 
-    while ((c = getopt (argc, (char * const *)argv, "abcdp:h")) != -1) {
+    while ((c = getopt (argc, (char * const *)argv, "abcd:p:h")) != -1) {
         switch (c) {
             case 'a':
                 opt_allsegments = true;
