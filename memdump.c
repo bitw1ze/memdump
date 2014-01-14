@@ -89,6 +89,7 @@ int main(int argc, const char *argv[])
     }
     if (!(opt_allsegments | opt_stack | opt_heap)) {
         fprintf(stderr, "Must choose section(s) of memory to dump\n");
+        usage();
     }
     if (!opt_customdir) {
         snprintf(opt_dirname, sizeof(opt_dirname), "%d-%d", (int)pid, (int)time(NULL));
