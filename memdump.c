@@ -8,12 +8,17 @@
 #include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdbool.h>
 #include "memdump.h"
 
 void usage() {
-    fprintf(stderr, "Usage: ./memdump <pid>\n");
+    fprintf(stderr, "Usage: ./memdump [opts] <pid>\n");
     exit(1);
 }
+
+bool opt_stack = true;
+bool opt_heap = true;
+bool opt_all = false;
 
 int main(int argc, const char *argv[])
 {
@@ -26,7 +31,15 @@ int main(int argc, const char *argv[])
     if (argc != 2 || (pid = (pid_t)atoi(argv[1])) <= 0) {
         usage();
     }
-    
+
+    map.count = 0;
+    map.pid = pid;
+
+    if (ptrace(PTRACE_ATTACH, map.pid, NULL, NULL)) {
+        perror("PTRACE_ATTACH");
+        exit(errno);
+    }
+
     size_t len = strlen(argv[1]) + strlen("/proc/") + strlen("/maps");
     fn = calloc(len+1, 1);
     if (!fn) {
@@ -34,9 +47,6 @@ int main(int argc, const char *argv[])
         exit(errno);
     }
     snprintf(fn, len+1, "/proc/%s/maps", argv[1]);
-
-    map.count = 0;
-    map.pid = pid;
 
     fh = fopen(fn, "r");
     if (!fh) {
@@ -65,11 +75,6 @@ int main(int argc, const char *argv[])
 
     if (map.count == MAX_RECORDS) {
         fprintf(stderr, "[warn] max segments exceeded, not dumping any more");
-    }
-
-    if (ptrace(PTRACE_ATTACH, map.pid, NULL, NULL)) {
-        perror("PTRACE_ATTACH");
-        exit(errno);
     }
 
     int i;
