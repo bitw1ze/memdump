@@ -15,7 +15,7 @@
 
 void usage() {
     fprintf(stderr, 
-            "Usage: ./memdump <section(s)> [opts] -p <pid>\n\n"
+            "Usage: ./memdump <segment(s)> [opts] -p <pid>\n\n"
             "Options:\n"
             "   -A              dump all segments\n"
             "   -D              dump data segments\n"
