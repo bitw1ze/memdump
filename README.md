@@ -2,14 +2,17 @@
 
 ## What
 
-Dump the memory of a process on a unixy system.
+Dump the memory of a process on a unixy system. Memdump should work on x86,
+x86_64, ARM, and probably other architectures, as long as it is a unixy system
+that supports the PTRACE API.
 
 # Why
 
 It's nice sometimes just to be able to see what's in the memory of a process
-and grep for stuff without having to spin up GDB or do any other crazy stuff. I
-haven't seen a tool that dumps memory the way I want. Also I was bored and felt
-like learning the ptrace API, so I figured this would be a nice tool to write.
+and grep for interesting things without having to spin up GDB or do any other
+crazy stuff. I haven't seen another a tool that dumps memory the way I want, so
+I made one. Also I was bored and felt like learning the ptrace API, so I
+figured this would be a nice tool to write.
 
 ## How
 
