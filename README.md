@@ -19,16 +19,17 @@ figured this would be a nice tool to write.
 <pre>
 $ cc memdump.c -o memdump
 $ ./memdump -h
-Usage: ./memdump [opts] -p <pid>
+Usage: ./memdump <segment(s)> [opts] -p <pid>
 
 Options:
-   -a              dump all segments
-   -b              dump the stack
-   -c              dump the heap
-   -d &lt;dir&gt;        save dumps to custom directory &lt;dir&gt;
+   -A              dump all segments
+   -D              dump data segments
+   -S              dump the stack
+   -H              dump the heap
+   -d &lt;dir&gt;        save dumps to custom directory
    -p &lt;pid&gt;        pid of the process to dump
    -h              this menu
-$ sudo ./memdump -b -c -p $(pgrep skype)
+$ sudo ./memdump -S -H -p $(pgrep skype)
 $ strings *.dump | grep your_password
 your_password
 </pre>
@@ -46,7 +47,7 @@ $ adb push memdump /data/local/tmp
 $ adb shell
 # cd /data/local/tmp
 # ps
-# ./memdump -d dumptest -a -p &lt;pid&gt;
+# ./memdump -d dumptest -D -S -H -p &lt;pid&gt;
 # ls dumptest
 a6895000-a6897000.dump
 a6898000-a6995000.dump
