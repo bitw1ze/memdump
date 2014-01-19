@@ -119,17 +119,20 @@ int main(int argc, const char *argv[], char *envp[])
         exit(errno);
     }
 
-    char *cmd = malloc(3+strlen(map_fn)+strlen(opt_dirname)+1);
-    sprintf(cmd, "cp %s %s", map_fn, opt_dirname);
-    if (system(cmd)) {
-        perror("system");
-        exit(1);
+    char *mapout_fn = malloc(strlen(opt_dirname)+1+sizeof("maps")+1);
+    sprintf(mapout_fn, "%s/maps", opt_dirname);
+    FILE *mapout_fh = fopen(mapout_fn, "w");
+    if (!mapout_fh) {
+        perror("fopen");
+        exit(errno);
     }
-    free(cmd);
+    free(mapout_fn);
 
     procmap_record tmp;
+    char *proc_name = NULL;
     while (fgets(buf, sizeof(buf), map_fh) && map.count < MAX_RECORDS)
     {
+        fwrite(buf, strlen(buf), 1, mapout_fh);
         buf[strlen(buf)-1] = 0;
         sscanf((const char *)buf, MAP_FMT, &tmp.begin, &tmp.end, &tmp.read,
                 &tmp.write, &tmp.exec, &tmp.q, &tmp.offset, &tmp.dev_major,
@@ -155,13 +158,16 @@ int main(int argc, const char *argv[], char *envp[])
         }
     }
 
+    fclose(mapout_fh);
+    fclose(map_fh);
+    free(proc_name);
+
     if (map.count == MAX_RECORDS) {
         fprintf(stderr, "[warn] max segments exceeded, not dumping any more");
     }
 
     procmap_record *it;
     it = &map.records[0];
-    int i;
 
     for (i=0; i<map.count; i++) {
         it = &map.records[i];
@@ -202,6 +208,7 @@ int main(int argc, const char *argv[], char *envp[])
             fclose(dump_fh);
         }
     }
+
     if (ptrace(PTRACE_DETACH, map.pid, NULL, NULL)) {
         perror("PTRACE_DETACH");
         exit(errno);
