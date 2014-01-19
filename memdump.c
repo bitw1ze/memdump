@@ -63,7 +63,6 @@ int main(int argc, const char *argv[])
 
                 break;
             case 'p':
-                printf("setting pid\n");
                 pid = (pid_t)atoi(optarg);
                 break;
             case 'h':
