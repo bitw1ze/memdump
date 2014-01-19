@@ -15,11 +15,12 @@
 
 void usage() {
     fprintf(stderr, 
-            "Usage: ./memdump [opts] -p <pid>\n\n"
+            "Usage: ./memdump <section(s)> [opts] -p <pid>\n\n"
             "Options:\n"
-            "   -a              dump all segments\n"
-            "   -b              dump the stack\n"
-            "   -c              dump the heap\n"
+            "   -A              dump all segments\n"
+            "   -D              dump data segments\n"
+            "   -S              dump the stack\n"
+            "   -H              dump the heap\n"
             "   -d <dir>        save dumps to custom directory <dir>\n"
             "   -p <pid>        pid of the process to dump\n"
             "   -h              this menu\n");
@@ -27,31 +28,36 @@ void usage() {
 }
 
 bool opt_allsegments = false;
+bool opt_data = false;
 bool opt_heap = false;
 bool opt_stack = false;
 bool opt_customdir = false;
 char opt_dirname[FILENAME_MAX];
 
-int main(int argc, const char *argv[])
+int main(int argc, const char *argv[], char *envp[])
 {
+    procmap map;
     char map_fn[64];
+    char buf[BUFLEN];
     FILE *map_fh;
     int c;
-    char buf[BUFLEN];
-    procmap map;
+    size_t i = 0;
     pid_t pid = 0;
 
     opterr = 0;
 
-    while ((c = getopt (argc, (char * const *)argv, "abcd:p:h")) != -1) {
+    while ((c = getopt (argc, (char * const *)argv, "ADSHd:p:h")) != -1) {
         switch (c) {
-            case 'a':
+            case 'A':
                 opt_allsegments = true;
                 break;
-            case 'b':
+            case 'D':
+                opt_data = true;
+                break;
+            case 'S':
                 opt_stack = true;
                 break;
-            case 'c':
+            case 'H':
                 opt_heap = true;
                 break;
             case 'd':
@@ -133,9 +139,15 @@ int main(int argc, const char *argv[])
                 tmp.q, tmp.offset, tmp.dev_major, tmp.dev_minor, tmp.inode,
                 tmp.info); 
 #endif
+        if (!proc_name) {
+            proc_name = malloc(strlen(tmp.info)+1);
+            strcpy(proc_name, tmp.info);
+        }
+
         bool doit = false;
         if (tmp.read == 'r') {
             doit |= opt_allsegments;
+            doit |= (opt_data && !strcmp(tmp.info, proc_name));
             doit |= (opt_stack && strstr(tmp.info, "[stack"));
             doit |= (opt_heap && strstr(tmp.info, "[heap"));
             if (doit)
