@@ -136,8 +136,8 @@ int main(int argc, const char *argv[])
         bool doit = false;
         if (tmp.read == 'r') {
             doit |= opt_allsegments;
-            doit |= (opt_stack && !strcmp(tmp.info, "[stack]"));
-            doit |= (opt_heap && !strcmp(tmp.info, "[heap]"));
+            doit |= (opt_stack && strstr(tmp.info, "[stack"));
+            doit |= (opt_heap && strstr(tmp.info, "[heap"));
             if (doit)
                 memcpy(&map.records[map.count++], &tmp, sizeof(procmap_record));
         }
