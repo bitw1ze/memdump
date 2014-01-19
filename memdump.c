@@ -113,6 +113,14 @@ int main(int argc, const char *argv[])
         exit(errno);
     }
 
+    char *cmd = malloc(3+strlen(map_fn)+strlen(opt_dirname)+1);
+    sprintf(cmd, "cp %s %s", map_fn, opt_dirname);
+    if (system(cmd)) {
+        perror("system");
+        exit(1);
+    }
+    free(cmd);
+
     procmap_record tmp;
     while (fgets(buf, sizeof(buf), map_fh) && map.count < MAX_RECORDS)
     {
