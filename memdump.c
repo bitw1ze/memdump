@@ -104,11 +104,11 @@ int main(int argc, const char *argv[], char *envp[])
     }
 
     if (pid <= 0) {
-        fprintf(stderr, "Must specify pid\n!");
+        fprintf(stderr, "Must specify pid!\n");
         usage();
     }
-    if (!(opt_allsegments | opt_stack | opt_heap)) {
-        fprintf(stderr, "Must choose section(s) of memory to dump\n");
+    if (!(opt_allsegments | opt_stack | opt_heap | opt_data)) {
+        fprintf(stderr, "Must choose section(s) of memory to dump!\n");
         usage();
     }
     if (!opt_customdir) {
