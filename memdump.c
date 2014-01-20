@@ -14,6 +14,15 @@
 #include <stdarg.h>
 #include "memdump.h"
 
+bool opt_allsegments = false;
+bool opt_data = false;
+bool opt_heap = false;
+bool opt_stack = false;
+bool opt_customdir = false;
+bool opt_verbose = false;
+char opt_dirname[FILENAME_MAX];
+procmap map;
+
 void usage() {
     fprintf(stderr, 
             "Usage: ./memdump <segment(s)> [opts] -p <pid>\n\n"
@@ -29,13 +38,20 @@ void usage() {
     exit(1);
 }
 
-bool opt_allsegments = false;
-bool opt_data = false;
-bool opt_heap = false;
-bool opt_stack = false;
-bool opt_customdir = false;
-bool opt_verbose = false;
-char opt_dirname[FILENAME_MAX];
+void cleanup() {
+    if (ptrace(PTRACE_DETACH, map.pid, NULL, NULL)) {
+        perror("PTRACE_DETACH");
+        exit(errno);
+    }
+}
+
+void try(int error, const char *message) {
+    if (error) {
+        perror(message);
+        cleanup();
+        exit(errno);
+    }
+}
 
 void printv(const char *format, ...)
 {
@@ -49,7 +65,6 @@ void printv(const char *format, ...)
 
 int main(int argc, const char *argv[], char *envp[])
 {
-    procmap map;
     char map_fn[64];
     char buf[BUFLEN];
     FILE *map_fh;
@@ -115,34 +130,21 @@ int main(int argc, const char *argv[], char *envp[])
         snprintf(opt_dirname, sizeof(opt_dirname), "%d-%d", (int)pid, (int)time(NULL));
     }
 
-    if (mkdir(opt_dirname, 0755)) {
-        perror("mkdir");
-        exit(errno);
-    }
+    try(mkdir(opt_dirname, 0755), "mkdir");
     printv("Dumping output to directory '%s'\n", opt_dirname);
 
     map.count = 0;
     map.pid = pid;
 
-    if (ptrace(PTRACE_ATTACH, map.pid, NULL, NULL)) {
-        perror("PTRACE_ATTACH");
-        exit(errno);
-    }
-
+    try(ptrace(PTRACE_ATTACH, map.pid, NULL, NULL), "PTRACE_ATTACH");
     snprintf(map_fn, sizeof(map_fn), "/proc/%d/maps", pid);
     map_fh = fopen(map_fn, "r");
-    if (!map_fh) {
-        printf("Failed to open %s\n", map_fn);
-        exit(errno);
-    }
+    try(!map_fh, "fopen");
 
     char *mapout_fn = malloc(strlen(opt_dirname)+1+sizeof("maps")+1);
     sprintf(mapout_fn, "%s/maps", opt_dirname);
     FILE *mapout_fh = fopen(mapout_fn, "w");
-    if (!mapout_fh) {
-        perror("fopen");
-        exit(errno);
-    }
+    try(!(int)mapout_fh, "fopen");
     printv("Wrote maps to %s\n", mapout_fn);
     free(mapout_fn);
 
@@ -191,17 +193,12 @@ int main(int argc, const char *argv[], char *envp[])
             long tmp, addr;
             size_t segment_sz = it->end - it->begin;
             unsigned char *data = (unsigned char *)calloc(segment_sz, 1);
-            if (!data) {
-                perror("calloc");
-                exit(errno);
-            }
+            try(!data, "calloc");
 
             for (addr = it->begin; addr < it->end; addr += WORD) {
                 errno = 0;
                 tmp = ptrace(PTRACE_PEEKTEXT, map.pid, (void *)addr, NULL);
-                if (errno) {
-                    perror("PTRACE_PEEKTEXT");
-                }
+                try(errno, "PTRACE_PEEKTEXT");
                 memcpy(data, &tmp, WORD);
                 data += WORD;
             }
@@ -212,20 +209,14 @@ int main(int argc, const char *argv[], char *envp[])
             snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, opt_dirname, it->begin, it->end);
             printv("Created file: %s\n", dump_fn);
             FILE *dump_fh = fopen(dump_fn, "wb");
-            if (!dump_fh) {
-                perror("fopen");
-                exit(errno);
-            }
+            try(!dump_fh, "fopen");
             fwrite((const void *)data, segment_sz, 1, dump_fh);
             free(data);
             fclose(dump_fh);
         }
     }
 
-    if (ptrace(PTRACE_DETACH, map.pid, NULL, NULL)) {
-        perror("PTRACE_DETACH");
-        exit(errno);
-    }
+    cleanup();
 
     return 0;
 }
