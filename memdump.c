@@ -69,17 +69,10 @@ void printv(const char *format, ...)
     }
 }
 
-int main(int argc, const char *argv[], char *envp[])
-{
-    char map_fn[64];
-    char buf[BUFLEN];
-    FILE *map_fh;
+void parse_args(int argc, const char **argv) {
     int c;
-    size_t i = 0;
-    pid_t pid = 0;
-
-    signal(SIGINT, sigint_handler);
     opterr = 0;
+    map.pid = 0;
 
     while ((c = getopt (argc, (char * const *)argv, "ADSHvhd:p:")) != -1) {
         switch (c) {
@@ -104,7 +97,7 @@ int main(int argc, const char *argv[], char *envp[])
 
                 break;
             case 'p':
-                pid = (pid_t)atoi(optarg);
+                map.pid = (pid_t)atoi(optarg);
                 break;
             case 'v':
                 opt_verbose = true;
@@ -121,45 +114,48 @@ int main(int argc, const char *argv[], char *envp[])
                     fprintf (stderr,
                             "Unknown option character `\\x%x'.\n",
                             optopt);
-                return 1;
+                exit(1);
         }
     }
 
-    if (pid <= 0) {
+    if (map.pid <= 0) {
         fprintf(stderr, "Must specify pid!\n");
         usage();
     }
-    map.count = 0;
-    map.pid = pid;
 
     if (!(opt_allsegments | opt_stack | opt_heap | opt_data)) {
         fprintf(stderr, "Must choose section(s) of memory to dump!\n");
         usage();
     }
     if (!opt_customdir) {
-        snprintf(opt_dirname, sizeof(opt_dirname), "%d-%d", (int)pid, (int)time(NULL));
+        snprintf(opt_dirname, sizeof(opt_dirname), "%d-%d",
+                (int)map.pid, (int)time(NULL));
     }
+}
 
-    if (ptrace(PTRACE_ATTACH, map.pid, NULL, NULL)) {
-        perror("PTRACE_ATTACH");
-        exit(errno);
-    }
+void parse_maps() {
+    FILE *map_fh, *mapout_fh;
+    char map_fn[64];
+    char *mapout_fn, *proc_name;
+    char buf[BUFLEN];
 
-    try(mkdir(opt_dirname, 0755), "mkdir");
-    printv("Dumping output to directory '%s'\n", opt_dirname);
-
-    snprintf(map_fn, sizeof(map_fn), "/proc/%d/maps", pid);
+    // open /prod/<pid>/maps maps file
+    snprintf(map_fn, sizeof(map_fn), "/proc/%d/maps", map.pid);
     map_fh = fopen(map_fn, "r");
     try(!map_fh, "fopen");
-    char *mapout_fn = malloc(strlen(opt_dirname)+1+sizeof("maps")+1);
+
+    // create maps output file
+    mapout_fn = malloc(strlen(opt_dirname)+1+sizeof("maps")+1);
     sprintf(mapout_fn, "%s/maps", opt_dirname);
-    FILE *mapout_fh = fopen(mapout_fn, "w");
+    mapout_fh = fopen(mapout_fn, "w");
     try(!mapout_fh, "fopen");
     printv("Wrote maps to %s\n", mapout_fn);
     free(mapout_fn);
 
+    /* read each record from the maps file, only saving those that we're
+       interested in */
     procmap_record tmp;
-    char *proc_name = NULL;
+    map.count = 0;
     while (fgets(buf, sizeof(buf), map_fh) && map.count < MAX_RECORDS)
     {
         fwrite(buf, strlen(buf), 1, mapout_fh);
@@ -192,7 +188,10 @@ int main(int argc, const char *argv[], char *envp[])
     if (map.count == MAX_RECORDS) {
         fprintf(stderr, "[warn] max segments exceeded, not dumping any more");
     }
+}
 
+void dump_memory() {
+    size_t i;
     procmap_record *it;
     it = &map.records[0];
 
@@ -225,7 +224,24 @@ int main(int argc, const char *argv[], char *envp[])
             fclose(dump_fh);
         }
     }
+}
 
+int main(int argc, const char *argv[], char *envp[])
+{
+    signal(SIGINT, sigint_handler);
+    parse_args(argc, argv);
+    
+    if (ptrace(PTRACE_ATTACH, map.pid, NULL, NULL)) {
+        perror("PTRACE_ATTACH");
+        exit(errno);
+    }
+
+    // make output directory
+    try(mkdir(opt_dirname, 0755), "mkdir");
+    printv("Dumping output to directory '%s'\n", opt_dirname);
+
+    parse_maps();
+    dump_memory();
     cleanup();
 
     return 0;
