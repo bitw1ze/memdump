@@ -1,3 +1,6 @@
+#ifndef __MEMDUMP_H__
+#define __MEMDUMP_H__
+
 #if __GNUC__
 #if __x86_64__ || __ppc64__
 #define ENVIRONMENT64
@@ -40,4 +43,4 @@ typedef struct __procmap {
     pid_t pid;
 } procmap;
 
-
+#endif
