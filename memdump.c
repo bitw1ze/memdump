@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <stdbool.h>
 #include <time.h>
+#include <stdarg.h>
 #include "memdump.h"
 
 void usage() {
@@ -23,6 +24,7 @@ void usage() {
             "   -H              dump the heap\n"
             "   -d <dir>        save dumps to custom directory <dir>\n"
             "   -p <pid>        pid of the process to dump\n"
+            "   -v              verbose\n"
             "   -h              this menu\n");
     exit(1);
 }
@@ -32,7 +34,18 @@ bool opt_data = false;
 bool opt_heap = false;
 bool opt_stack = false;
 bool opt_customdir = false;
+bool opt_verbose = false;
 char opt_dirname[FILENAME_MAX];
+
+void printv(const char *format, ...)
+{
+    if (opt_verbose) {
+        va_list args;
+        va_start(args, format);
+        vfprintf(stderr, format, args);
+        va_end(args);
+    }
+}
 
 int main(int argc, const char *argv[], char *envp[])
 {
@@ -46,7 +59,7 @@ int main(int argc, const char *argv[], char *envp[])
 
     opterr = 0;
 
-    while ((c = getopt (argc, (char * const *)argv, "ADSHd:p:h")) != -1) {
+    while ((c = getopt (argc, (char * const *)argv, "ADSHvhd:p:")) != -1) {
         switch (c) {
             case 'A':
                 opt_allsegments = true;
@@ -70,6 +83,9 @@ int main(int argc, const char *argv[], char *envp[])
                 break;
             case 'p':
                 pid = (pid_t)atoi(optarg);
+                break;
+            case 'v':
+                opt_verbose = true;
                 break;
             case 'h':
                 usage();
@@ -103,6 +119,7 @@ int main(int argc, const char *argv[], char *envp[])
         perror("mkdir");
         exit(errno);
     }
+    printv("Dumping output to directory '%s'\n", opt_dirname);
 
     map.count = 0;
     map.pid = pid;
@@ -126,6 +143,7 @@ int main(int argc, const char *argv[], char *envp[])
         perror("fopen");
         exit(errno);
     }
+    printv("Wrote maps to %s\n", mapout_fn);
     free(mapout_fn);
 
     procmap_record tmp;
@@ -137,11 +155,6 @@ int main(int argc, const char *argv[], char *envp[])
         sscanf((const char *)buf, MAP_FMT, &tmp.begin, &tmp.end, &tmp.read,
                 &tmp.write, &tmp.exec, &tmp.q, &tmp.offset, &tmp.dev_major,
                 &tmp.dev_minor, &tmp.inode, tmp.info);
-#ifdef DEBUG
-        printf(MAP_FMT "\n", tmp.begin, tmp.end, tmp.read, tmp.write, tmp.exec,
-                tmp.q, tmp.offset, tmp.dev_major, tmp.dev_minor, tmp.inode,
-                tmp.info); 
-#endif
         if (!proc_name) {
             proc_name = malloc(strlen(tmp.info)+1);
             strcpy(proc_name, tmp.info);
@@ -153,8 +166,10 @@ int main(int argc, const char *argv[], char *envp[])
             doit |= (opt_data && !strcmp(tmp.info, proc_name));
             doit |= (opt_stack && strstr(tmp.info, "[stack"));
             doit |= (opt_heap && strstr(tmp.info, "[heap"));
-            if (doit)
+            if (doit) {
                 memcpy(&map.records[map.count++], &tmp, sizeof(procmap_record));
+                printv("To-dump: %s\n", buf);
+            }
         }
     }
 
@@ -195,9 +210,7 @@ int main(int argc, const char *argv[], char *envp[])
 
             char dump_fn[FILENAME_MAX];
             snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, opt_dirname, it->begin, it->end);
-#ifdef DEBUG
-            printf("Created file: %s\n", dump_fn);
-#endif
+            printv("Created file: %s\n", dump_fn);
             FILE *dump_fh = fopen(dump_fn, "wb");
             if (!dump_fh) {
                 perror("fopen");
