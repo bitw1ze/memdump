@@ -2,9 +2,9 @@
 
 ## What
 
-Dump the memory of a process on a unixy system. Memdump should work on x86,
-x86_64, ARM, and probably other architectures, as long as it is a unixy system
-that supports the PTRACE API.
+Dump the memory of a process. Memdump should work on x86, x86_64, ARM, and
+probably other 32-bit and 64-bit architectures, as long as it's running on a
+unixy system that supports the PTRACE API.
 
 # Why
 
@@ -19,7 +19,7 @@ figured this would be a nice tool to write.
 <pre>
 $ cc memdump.c -o memdump
 $ ./memdump -h
-Usage: ./memdump <segment(s)> [opts] -p <pid>
+Usage: ./memdump &lt;segment(s)&gt; [opts] -p &lt;pid&gt;
 
 Options:
    -A              dump all segments
@@ -28,6 +28,7 @@ Options:
    -H              dump the heap
    -d &lt;dir&gt;        save dumps to custom directory
    -p &lt;pid&gt;        pid of the process to dump
+   -v              verbose
    -h              this menu
 $ sudo ./memdump -S -H -p $(pgrep skype)
 $ strings *.dump | grep your_password
