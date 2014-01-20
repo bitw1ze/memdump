@@ -122,6 +122,9 @@ int main(int argc, const char *argv[], char *envp[])
         fprintf(stderr, "Must specify pid!\n");
         usage();
     }
+    map.count = 0;
+    map.pid = pid;
+
     if (!(opt_allsegments | opt_stack | opt_heap | opt_data)) {
         fprintf(stderr, "Must choose section(s) of memory to dump!\n");
         usage();
@@ -130,21 +133,21 @@ int main(int argc, const char *argv[], char *envp[])
         snprintf(opt_dirname, sizeof(opt_dirname), "%d-%d", (int)pid, (int)time(NULL));
     }
 
+    if (ptrace(PTRACE_ATTACH, map.pid, NULL, NULL)) {
+        perror("PTRACE_ATTACH");
+        exit(errno);
+    }
+
     try(mkdir(opt_dirname, 0755), "mkdir");
     printv("Dumping output to directory '%s'\n", opt_dirname);
 
-    map.count = 0;
-    map.pid = pid;
-
-    try(ptrace(PTRACE_ATTACH, map.pid, NULL, NULL), "PTRACE_ATTACH");
     snprintf(map_fn, sizeof(map_fn), "/proc/%d/maps", pid);
     map_fh = fopen(map_fn, "r");
     try(!map_fh, "fopen");
-
     char *mapout_fn = malloc(strlen(opt_dirname)+1+sizeof("maps")+1);
     sprintf(mapout_fn, "%s/maps", opt_dirname);
     FILE *mapout_fh = fopen(mapout_fn, "w");
-    try(!(int)mapout_fh, "fopen");
+    try(!mapout_fh, "fopen");
     printv("Wrote maps to %s\n", mapout_fn);
     free(mapout_fn);
 
