@@ -179,6 +179,7 @@ void parse_maps() {
                 printv("To-dump: %s\n", buf);
             }
         }
+        memset(&tmp, 0, sizeof(tmp));
     }
 
     fclose(mapout_fh);
