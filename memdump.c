@@ -1,18 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <limits.h>
-#include <assert.h>
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <sys/ptrace.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <stdbool.h>
 #include <time.h>
 #include <stdarg.h>
 #include <signal.h>
+#include <sys/ptrace.h>
+#include <sys/stat.h>
 #include "memdump.h"
 
 bool opt_allsegments = false;
