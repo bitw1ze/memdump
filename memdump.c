@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <stdarg.h>
+#include <signal.h>
 #include "memdump.h"
 
 bool opt_allsegments = false;
@@ -53,6 +54,11 @@ void try(int error, const char *message) {
     }
 }
 
+void sigint_handler(int dummy) {
+    printf("\n[-] Caught CTRL-C. Exiting!\n");
+    cleanup();
+}
+
 void printv(const char *format, ...)
 {
     if (opt_verbose) {
@@ -72,6 +78,7 @@ int main(int argc, const char *argv[], char *envp[])
     size_t i = 0;
     pid_t pid = 0;
 
+    signal(SIGINT, sigint_handler);
     opterr = 0;
 
     while ((c = getopt (argc, (char * const *)argv, "ADSHvhd:p:")) != -1) {
