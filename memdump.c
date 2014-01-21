@@ -21,6 +21,16 @@ bool opt_verbose = false;
 char opt_dirname[FILENAME_MAX];
 procmap map;
 
+static void usage();
+static void cleanup();
+static void try(int status, const char *message);
+static void sigint_handler(int dummy);
+static void printv(const char *format, ...);
+static void parse_args(int argc, const char **argv);
+static void parse_maps();
+static void write_dumpfile(procmap_record *record, const unsigned char *data, size_t sz);
+static void dump_memory();
+
 void usage() {
     fprintf(stderr, 
             "Usage: ./memdump <segment(s)> [opts] -p <pid>\n\n"
@@ -36,27 +46,27 @@ void usage() {
     exit(1);
 }
 
-void cleanup() {
+static void cleanup() {
     if (ptrace(PTRACE_DETACH, map.pid, NULL, NULL)) {
         perror("PTRACE_DETACH");
         exit(errno);
     }
 }
 
-void try(int error, const char *message) {
-    if (error) {
+static void try(int status, const char *message) {
+    if (status) {
         perror(message);
         cleanup();
         exit(errno);
     }
 }
 
-void sigint_handler(int dummy) {
+static void sigint_handler(int dummy) {
     printf("\n[-] Caught CTRL-C. Exiting!\n");
     cleanup();
 }
 
-void printv(const char *format, ...)
+static void printv(const char *format, ...)
 {
     if (opt_verbose) {
         va_list args;
@@ -66,7 +76,7 @@ void printv(const char *format, ...)
     }
 }
 
-void parse_args(int argc, const char **argv) {
+static void parse_args(int argc, const char **argv) {
     int c;
     opterr = 0;
     map.pid = 0;
@@ -130,7 +140,7 @@ void parse_args(int argc, const char **argv) {
     }
 }
 
-void parse_maps() {
+static void parse_maps() {
     FILE *map_fh, *mapout_fh;
     char map_fn[64];
     char *mapout_fn, *proc_name;
@@ -193,38 +203,51 @@ void parse_maps() {
     }
 }
 
-void dump_memory() {
+static void write_dumpfile(procmap_record *record, const unsigned char *data, size_t sz) {
+    char dump_fn[FILENAME_MAX];
+    snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, 
+            opt_dirname, record->begin, record->end);
+    printv("Created file: %s\n", dump_fn);
+    FILE *dump_fh = fopen(dump_fn, "wb");
+    try(!dump_fh, "fopen");
+    fwrite((const void *)data, sz, 1, dump_fh);
+    fclose(dump_fh);
+}
+
+static void dump_memory() {
     size_t i;
+    bool skip_segment;
     procmap_record *it;
     it = &map.records[0];
 
     for (i=0; i<map.count; i++) {
+        skip_segment = false;
         it = &map.records[i];
 
         if (it->read == 'r') {
             long tmp, addr;
             size_t segment_sz = it->end - it->begin;
             unsigned char *data = (unsigned char *)calloc(segment_sz, 1);
+            unsigned char *offset = data;
             try(!data, "calloc");
 
             for (addr = it->begin; addr < it->end; addr += WORD) {
                 errno = 0;
                 tmp = ptrace(PTRACE_PEEKTEXT, map.pid, (void *)addr, NULL);
-                try(errno, "PTRACE_PEEKTEXT");
-                memcpy(data, &tmp, WORD);
-                data += WORD;
+                if (errno) {
+                    perror("PTRACE_PEEKTEXT");
+                    errno = 0;
+                    skip_segment = true;
+                    break;
+                }
+                memcpy(offset, &tmp, WORD);
+                offset += WORD;
             }
 
-            data -= segment_sz;
-
-            char dump_fn[FILENAME_MAX];
-            snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, opt_dirname, it->begin, it->end);
-            printv("Created file: %s\n", dump_fn);
-            FILE *dump_fh = fopen(dump_fn, "wb");
-            try(!dump_fh, "fopen");
-            fwrite((const void *)data, segment_sz, 1, dump_fh);
+            if (!skip_segment) {
+                write_dumpfile(it, (const unsigned char *)data, segment_sz);
+            }
             free(data);
-            fclose(dump_fh);
         }
     }
 }
