@@ -20,8 +20,10 @@
 #define MAX_RECORDS 4096 
 #define SUFFIX ".dump"
 #define ADDRSEP "-"
-#define MAP_FMT "%0"ADDRLEN"lx"ADDRSEP"%0"ADDRLEN"lx %c%c%c%c %0"ADDRLEN"llx %02x:%02x %lu %255s"
+#define MAP_FMT "%0"ADDRLEN"lx"ADDRSEP"%0"ADDRLEN"lx %c%c%c%c %0"ADDRLEN"llx %02x:%02x %lu %255[^\n]s"
 #define DUMP_FMT "%s/%0"ADDRLEN"lx-%0"ADDRLEN"lx"SUFFIX
+
+const char *blacklist[] = {"(deleted)", ".so", "/dev", NULL};
 
 typedef struct __procmap_record {
     long begin;

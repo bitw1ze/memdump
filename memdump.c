@@ -171,6 +171,11 @@ void parse_maps() {
             doit |= (opt_data && !strcmp(tmp.info, proc_name));
             doit |= (opt_stack && strstr(tmp.info, "[stack"));
             doit |= (opt_heap && strstr(tmp.info, "[heap"));
+
+            int i = 0;
+            while (doit && blacklist[i] != NULL)
+                doit &= (strstr(tmp.info, blacklist[i++]) == NULL);
+
             if (doit) {
                 memcpy(&map.records[map.count++], &tmp, sizeof(procmap_record));
                 printv("To-dump: %s\n", buf);
