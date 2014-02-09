@@ -3,272 +3,99 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <ctype.h>
 #include <stdbool.h>
-#include <time.h>
-#include <stdarg.h>
-#include <signal.h>
 #include <sys/ptrace.h>
-#include <sys/stat.h>
 #include "memdump.h"
 
-bool opt_allsegments = false;
-bool opt_data = false;
-bool opt_heap = false;
-bool opt_stack = false;
-bool opt_customdir = false;
-bool opt_verbose = false;
-char opt_dirname[FILENAME_MAX];
-procmap map;
-
-static void usage();
-static void cleanup();
-static void try(int status, const char *message);
-static void sigint_handler(int dummy);
-static void printv(const char *format, ...);
-static void parse_args(int argc, const char **argv);
-static void parse_maps();
-static void write_dumpfile(procmap_record *record, const unsigned char *data, size_t sz);
-static void dump_memory();
-
-void usage() {
-    fprintf(stderr, 
-            "Usage: ./memdump <segment(s)> [opts] -p <pid>\n\n"
-            "Options:\n"
-            "   -A              dump all segments\n"
-            "   -D              dump data segments\n"
-            "   -S              dump the stack\n"
-            "   -H              dump the heap\n"
-            "   -d <dir>        save dumps to custom directory <dir>\n"
-            "   -p <pid>        pid of the process to dump\n"
-            "   -v              verbose\n"
-            "   -h              this menu\n");
-    exit(1);
-}
-
-static void cleanup() {
-    if (ptrace(PTRACE_DETACH, map.pid, NULL, NULL)) {
-        perror("PTRACE_DETACH");
-        exit(errno);
-    }
-}
-
-static void try(int status, const char *message) {
-    if (status) {
-        perror(message);
-        cleanup();
-        exit(errno);
-    }
-}
-
-static void sigint_handler(int dummy) {
-    printf("\n[-] Caught CTRL-C. Exiting!\n");
-    cleanup();
-}
-
-static void printv(const char *format, ...)
-{
-    if (opt_verbose) {
-        va_list args;
-        va_start(args, format);
-        vfprintf(stderr, format, args);
-        va_end(args);
-    }
-}
-
-static void parse_args(int argc, const char **argv) {
-    int c;
-    opterr = 0;
-    map.pid = 0;
-
-    while ((c = getopt (argc, (char * const *)argv, "ADSHvhd:p:")) != -1) {
-        switch (c) {
-            case 'A':
-                opt_allsegments = true;
-                break;
-            case 'D':
-                opt_data = true;
-                break;
-            case 'S':
-                opt_stack = true;
-                break;
-            case 'H':
-                opt_heap = true;
-                break;
-            case 'd':
-                opt_customdir = true;
-                if (strlen(optarg) >= sizeof(opt_dirname)) {
-                    usage();
-                }
-                strncpy(opt_dirname, optarg, strlen(optarg));
-
-                break;
-            case 'p':
-                map.pid = (pid_t)atoi(optarg);
-                break;
-            case 'v':
-                opt_verbose = true;
-                break;
-            case 'h':
-                usage();
-                break;
-            default:
-                if (optopt == 'd' || optopt == 'p')
-                    fprintf (stderr, "Option -%c requires an argument.\n", optopt);
-                else if (isprint (optopt))
-                    fprintf (stderr, "Unknown option `-%c'.\n", optopt);
-                else
-                    fprintf (stderr,
-                            "Unknown option character `\\x%x'.\n",
-                            optopt);
-                exit(1);
-        }
-    }
-
-    if (map.pid <= 0) {
-        fprintf(stderr, "Must specify pid!\n");
-        usage();
-    }
-
-    if (!(opt_allsegments | opt_stack | opt_heap | opt_data)) {
-        fprintf(stderr, "Must choose section(s) of memory to dump!\n");
-        usage();
-    }
-    if (!opt_customdir) {
-        snprintf(opt_dirname, sizeof(opt_dirname), "%d-%d",
-                (int)map.pid, (int)time(NULL));
-    }
-}
-
-static void parse_maps() {
-    FILE *map_fh, *mapout_fh;
-    char map_fn[64];
-    char *mapout_fn, *proc_name;
-    char buf[BUFLEN];
-
-    // open /prod/<pid>/maps maps file
-    snprintf(map_fn, sizeof(map_fn), "/proc/%d/maps", map.pid);
-    map_fh = fopen(map_fn, "r");
-    try(!map_fh, "fopen");
-
-    // create maps output file
-    mapout_fn = malloc(strlen(opt_dirname)+1+sizeof("maps")+1);
-    sprintf(mapout_fn, "%s/maps", opt_dirname);
-    mapout_fh = fopen(mapout_fn, "w");
-    try(!mapout_fh, "fopen");
-    printv("Wrote maps to %s\n", mapout_fn);
-    free(mapout_fn);
-
-    /* read each record from the maps file, only saving those that we're
-       interested in */
-    procmap_record tmp;
-    map.count = 0;
-    while (fgets(buf, sizeof(buf), map_fh) && map.count < MAX_RECORDS)
-    {
-        fwrite(buf, strlen(buf), 1, mapout_fh);
-        buf[strlen(buf)-1] = 0;
-        sscanf((const char *)buf, MAP_FMT, &tmp.begin, &tmp.end, &tmp.read,
-                &tmp.write, &tmp.exec, &tmp.q, &tmp.offset, &tmp.dev_major,
-                &tmp.dev_minor, &tmp.inode, tmp.info);
-        if (!proc_name) {
-            proc_name = malloc(strlen(tmp.info)+1);
-            strcpy(proc_name, tmp.info);
-        }
-
-        bool doit = false;
-        if (tmp.read == 'r') {
-            doit |= opt_allsegments;
-            doit |= (opt_data && !strcmp(tmp.info, proc_name));
-            doit |= (opt_stack && strstr(tmp.info, "[stack"));
-            doit |= (opt_heap && strstr(tmp.info, "[heap"));
-
-            int i = 0;
-            while (doit && blacklist[i] != NULL)
-                doit &= (strstr(tmp.info, blacklist[i++]) == NULL);
-
-            if (doit) {
-                memcpy(&map.records[map.count++], &tmp, sizeof(procmap_record));
-                printv("To-dump: %s\n", buf);
-            }
-        }
-        memset(&tmp, 0, sizeof(tmp));
-    }
-
-    fclose(mapout_fh);
-    fclose(map_fh);
-    free(proc_name);
-
-    if (map.count == MAX_RECORDS) {
-        fprintf(stderr, "[warn] max segments exceeded, not dumping any more");
-    }
-}
-
-static void write_dumpfile(procmap_record *record, const unsigned char *data, size_t sz) {
-    char dump_fn[FILENAME_MAX];
-    snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, 
-            opt_dirname, record->begin, record->end);
-    printv("Created file: %s\n", dump_fn);
-    FILE *dump_fh = fopen(dump_fn, "wb");
-    try(!dump_fh, "fopen");
-    fwrite((const void *)data, sz, 1, dump_fh);
-    fclose(dump_fh);
-}
-
-static void dump_memory() {
+int procmap_init(procmap *map, pid_t pid) {
     size_t i;
-    bool skip_segment;
-    procmap_record *it;
-    it = &map.records[0];
+    map->pid = pid;
+    map->count = 0;
 
-    for (i=0; i<map.count; i++) {
-        skip_segment = false;
-        it = &map.records[i];
-
-        if (it->read == 'r') {
-            long tmp, addr;
-            size_t segment_sz = it->end - it->begin;
-            unsigned char *data = (unsigned char *)calloc(segment_sz, 1);
-            unsigned char *offset = data;
-            try(!data, "calloc");
-
-            for (addr = it->begin; addr < it->end; addr += WORD) {
-                errno = 0;
-                tmp = ptrace(PTRACE_PEEKTEXT, map.pid, (void *)addr, NULL);
-                if (errno) {
-                    perror("PTRACE_PEEKTEXT");
-                    errno = 0;
-                    skip_segment = true;
-                    break;
-                }
-                memcpy(offset, &tmp, WORD);
-                offset += WORD;
-            }
-
-            if (!skip_segment) {
-                write_dumpfile(it, (const unsigned char *)data, segment_sz);
-            }
-            free(data);
-        }
+    for (i=0; i<MAX_RECORDS; ++i) {
+        map->records[i].info[0] = '\0';
     }
-}
-
-int main(int argc, const char *argv[], char *envp[])
-{
-    signal(SIGINT, sigint_handler);
-    parse_args(argc, argv);
-    
-    if (ptrace(PTRACE_ATTACH, map.pid, NULL, NULL)) {
-        perror("PTRACE_ATTACH");
-        exit(errno);
-    }
-
-    // make output directory
-    try(mkdir(opt_dirname, 0755), "mkdir");
-    printv("Dumping output to directory '%s'\n", opt_dirname);
-
-    parse_maps();
-    dump_memory();
-    cleanup();
 
     return 0;
 }
+
+int read_maps(procmap *map, FILE *ifile) {
+    char map_fn[64];
+    char buf[BUFLEN];
+    procmap_record *it;
+
+    // try to open /prod/<pid>/maps if file is not supplied
+    if (!ifile) {
+        snprintf(map_fn, sizeof(map_fn), "/proc/%d/maps", map->pid);
+        ifile = fopen(map_fn, "r");
+        if (!ifile) {
+            return -1;
+        }
+    }
+
+    // read all the records from maps and parse them
+    map->count = 0;
+    while (fgets(buf, sizeof(buf), ifile) && map->count < MAX_RECORDS)
+    {
+        it = &map->records[map->count];
+        memset(it, 0, sizeof(procmap_record));
+        buf[strlen(buf)-1] = 0;
+        sscanf((const char *)buf, MAPI_FMT, &it->begin, &it->end, &it->read,
+                &it->write, &it->exec, &it->q, &it->offset, &it->dev_major,
+                &it->dev_minor, &it->inode, it->info);
+        char* newline = strchr(it->info, '\n');
+        if (newline)
+            *newline = 0;
+        memset(buf, 0, sizeof(buf));
+        map->count++;
+    }
+
+    fclose(ifile);
+
+    if (map->count == MAX_RECORDS) {
+        fprintf(stderr, "[warn] max segments exceeded, not dumping any more");
+    }
+
+    return 0;
+}
+
+int write_maps(FILE *ofile, const procmap *map) {
+    size_t i;
+    const procmap_record *it;
+
+    if (!ofile) {
+        return -1;
+    }
+
+    for (i=0; i<map->count; ++i) {
+        it = &map->records[i];
+        fprintf(ofile, MAPO_FMT, it->begin, it->end, it->read, it->write,
+                it->exec, it->q, it->offset, it->dev_major, it->dev_minor,
+                it->inode, it->info);
+    }
+
+    return 0;
+}
+
+void * fetch_memory(pid_t pid, const void *start, size_t len) {
+    // caller must make sure this does not overflow
+
+    void *data = calloc(len, 1);
+    long word = 0;
+    if (!data) {
+        return NULL;
+    }
+
+    size_t offset;
+    errno = 0;
+    for (offset=0; offset<len; offset += WORD) {
+        word = ptrace(PTRACE_PEEKTEXT, pid, (void *)(start+offset), NULL);
+        if (errno) {
+            return NULL;
+        }
+        memcpy(data+offset, &word, WORD);
+    }
+
+    return data;
+}
+

@@ -10,20 +10,21 @@
 #endif
 
 #ifdef ENVIRONMENT64
-#define ADDRLEN "16"
+#define ADDR_LEN "16"
 #else
-#define ADDRLEN "8"
+#define ADDR_LEN "8"
 #endif
 
 #define WORD sizeof(long)
 #define BUFLEN 4096
 #define MAX_RECORDS 4096 
-#define SUFFIX ".dump"
-#define ADDRSEP "-"
-#define MAP_FMT "%0"ADDRLEN"lx"ADDRSEP"%0"ADDRLEN"lx %c%c%c%c %0"ADDRLEN"llx %02x:%02x %lu %255[^\n]s"
-#define DUMP_FMT "%s/%0"ADDRLEN"lx-%0"ADDRLEN"lx"SUFFIX
-
-const char *blacklist[] = {"(deleted)", ".so", "/dev", NULL};
+#define ADDR_SEP "-"
+#define DUMP_DIR "%s/"
+#define DUMP_EXT ".dump"
+#define ADDR_FMT "%0"ADDR_LEN"lx"ADDR_SEP"%0"ADDR_LEN"lx"
+#define MAPI_FMT ADDR_FMT " %c%c%c%c %0"ADDR_LEN"llx %02x:%02x %lu %255[^\n]s"
+#define MAPO_FMT ADDR_FMT " %c%c%c%c %0"ADDR_LEN"llx %02x:%02x %lu %s\n"
+#define DUMP_FMT DUMP_DIR ADDR_FMT DUMP_EXT
 
 typedef struct __procmap_record {
     long begin;
@@ -45,4 +46,10 @@ typedef struct __procmap {
     pid_t pid;
 } procmap;
 
+int procmap_init(procmap *map, pid_t pid);
+int read_maps(procmap *map, FILE *ifile);
+int write_maps(FILE *ofile, const procmap *map);
+void * fetch_memory(pid_t pid, const void *start, size_t len);
+
 #endif
+
