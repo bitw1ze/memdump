@@ -207,7 +207,7 @@ static int write_mapsfile(const procmap *map) {
         return -1;
     }
 
-    write_maps(mapout_fh, map);
+    write_maps(map, mapout_fh);
     printv("[+] wrote maps to %s\n", mapout_fn);
 
     free(mapout_fn);

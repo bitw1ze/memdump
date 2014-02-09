@@ -59,7 +59,7 @@ int read_maps(procmap *map, FILE *ifile) {
     return 0;
 }
 
-int write_maps(FILE *ofile, const procmap *map) {
+int write_maps(const procmap *map, FILE *ofile) {
     size_t i;
     const procmap_record *it;
 

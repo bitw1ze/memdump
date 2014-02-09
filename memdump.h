@@ -48,7 +48,7 @@ typedef struct __procmap {
 
 int procmap_init(procmap *map, pid_t pid);
 int read_maps(procmap *map, FILE *ifile);
-int write_maps(FILE *ofile, const procmap *map);
+int write_maps(const procmap *map, FILE *ofile);
 void * fetch_memory(pid_t pid, const void *start, size_t len);
 
 #endif
