@@ -17,7 +17,7 @@ figured this would be a nice tool to write.
 ## How
 
 <pre>
-$ cc memdump.c -o memdump
+$ cc main.c memdump.c -o memdump
 $ ./memdump -h
 Usage: ./memdump &lt;segment(s)&gt; [opts] -p &lt;pid&gt;
 
@@ -30,26 +30,27 @@ Options:
    -p &lt;pid&gt;        pid of the process to dump
    -v              verbose
    -h              this menu
-$ sudo ./memdump -S -H -p $(pgrep skype)
-$ strings *.dump | grep your_password
-your_password
+$ sudo ./memdump -d output -S -H -p $(pgrep some_app)
+...
+$ strings -f output/*.dump | grep your_password
+output/7668d000-7668f000.dump: your_password
 </pre>
 
-## What about Android? (YMMV)
+## What about Android?
 
 You need the Android NDK with your platform's gcc binary in your PATH. Change
-architecture as needed. This may not work on all devices and kernel versions,
-but it worked for me on Android 4.4 on an emulated Nexus 4. You must be root on
-your Android device to run memdump.
+architecture as needed. This may not work on all devices and OS versions, but
+it worked for me on Android 4.4 on an emulated and a real Nexus 4. You must run
+memdump as root.
 
 <pre>
-$ arm-linux-gnueabi-gcc memdump.c -o memdump -march=armv7-a -static
+$ arm-linux-gnueabi-gcc main.c memdump.c -static -march=armv7-a -o memdump
 $ adb push memdump /data/local/tmp
 $ adb shell
 # cd /data/local/tmp
 # ps
-# ./memdump -d dumptest -D -S -H -p &lt;pid&gt;
-# ls dumptest
+# ./memdump -d output -D -S -H -p 31337
+# ls output
 a6895000-a6897000.dump
 a6898000-a6995000.dump
 a6995000-a699b000.dump
