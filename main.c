@@ -29,7 +29,7 @@ static int write_dumpfile(const procmap_record *record, const void *data, size_t
 static int write_mapsfile(const procmap *map);
 static int filter_maps(const procmap *imap, procmap *omap);
 
-static const char *blacklist[] = {"(deleted)", ".so", "/dev", NULL};
+static const char *blacklist[] = {"(deleted)", NULL};
 
 bool opt_allsegments = false;
 bool opt_data = false;
