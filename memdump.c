@@ -41,7 +41,7 @@ int read_maps(procmap *map, FILE *ifile) {
         memset(it, 0, sizeof(procmap_record));
         buf[strlen(buf)-1] = 0;
         sscanf((const char *)buf, MAPI_FMT, &it->begin, &it->end, &it->read,
-                &it->write, &it->exec, &it->q, &it->offset, &it->dev_major,
+                &it->write, &it->exec, &it->shared, &it->offset, &it->dev_major,
                 &it->dev_minor, &it->inode, it->info);
         char* newline = strchr(it->info, '\n');
         if (newline)
@@ -70,7 +70,7 @@ int write_maps(const procmap *map, FILE *ofile) {
     for (i=0; i<map->count; ++i) {
         it = &map->records[i];
         fprintf(ofile, MAPO_FMT, it->begin, it->end, it->read, it->write,
-                it->exec, it->q, it->offset, it->dev_major, it->dev_minor,
+                it->exec, it->shared, it->offset, it->dev_major, it->dev_minor,
                 it->inode, it->info);
     }
 
@@ -81,11 +81,11 @@ void * fetch_memory(pid_t pid, const void *start, size_t len) {
     // caller must make sure this does not overflow
 
     void *data = calloc(len, 1);
-    long word = 0;
     if (!data) {
         return NULL;
     }
 
+    long word = 0;
     size_t offset;
     errno = 0;
     for (offset=0; offset<len; offset += WORD) {

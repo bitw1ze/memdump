@@ -144,17 +144,11 @@ static void parse_args(int argc, const char **argv) {
 static int filter_maps(const procmap *imap, procmap *omap) {
     bool doit;
     size_t i, j;
-    char *proc_name = NULL;
     
     for (i=0; i<imap->count; ++i) {
         doit = false;
-
-        if (!proc_name) {
-            proc_name = malloc(strlen(imap->records[i].info)+1);
-            strcpy(proc_name, imap->records[i].info);
-        }
         doit |= opt_allsegments;
-        doit |= (opt_data && !strcmp(imap->records[i].info, proc_name));
+        doit |= (opt_data && !strcmp(imap->records[i].info, imap->records[i].info));
         doit |= (opt_stack && strstr(imap->records[i].info, "[stack"));
         if (opt_heap) {
             doit |= strstr(imap->records[i].info, "[heap") || 
@@ -173,7 +167,6 @@ static int filter_maps(const procmap *imap, procmap *omap) {
             omap->count++;
         }
     }
-    free(proc_name);
     return 0;
 }
 
@@ -181,15 +174,39 @@ static int write_dumpfile(const procmap_record *record, const void *data, size_t
     char dump_fn[FILENAME_MAX];
     FILE *dump_fh;
 
+    char *info = strdup(record->info);
+    if (info) {
+        char *c = info;
+        while (*c != '\0') {
+            switch (*c) {
+                case ':':
+                    *c = '@';
+                    break;
+                case '/':
+                    *c = '_';
+                    break;
+            }
+            c++;
+        }
+    }
     snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, 
-            opt_dirname, record->begin, record->end);
-    printv("[+] wrote section \"%s\" to %s\n", record->info, dump_fn);
+            opt_dirname, record->begin, record->end, record->offset,
+            record->read, record->write, record->exec, record->shared,
+            info ? info : "");
+    free(info);
     dump_fh = fopen(dump_fn, "wb");
     if (!dump_fh) {
         return -1;
     }
-    fwrite(data, sz, 1, dump_fh);
+    if (data) {
+        fwrite(data, sz, 1, dump_fh);
+        fflush(dump_fh);
+    }
+    else {
+        fprintf(stderr, "[warning] failed to read "ADDR_FMT"\n", record->begin, record->end);
+    }
     fclose(dump_fh);
+    printv("[+] wrote section \"%s\" to %s\n", record->info, dump_fn);
 
     return 0;
 }
@@ -225,17 +242,10 @@ int fetch_map_memory(const procmap *map, memcallback_t callback) {
     for (i=0; i<map->count; i++) {
         it = &map->records[i];
 
-        if (it->read == 'r') {
+        if (it->read == 'r' && it->end > it->begin) {
             segment_size = it->end - it->begin;
             data = fetch_memory(map->pid, (void *)it->begin, segment_size);
-            if (data) {
-                callback(it, data, segment_size);
-            }
-            else {
-                fprintf(stderr, "[-] failed to read "ADDR_FMT"\n", it->begin, it->end);
-                perror("fetch_memory");
-                errno = 0;
-            }
+            callback(it, data, segment_size);
         }
     }
 
