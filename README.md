@@ -1,12 +1,7 @@
 # memdump
+A tool for dumping process memory.
 
-## What
-
-Dump the memory of a process. Memdump should work on x86, x86_64, ARM, and
-probably other 32-bit and 64-bit architectures, as long as it's running on a
-unixy system that supports the PTRACE API.
-
-# Why
+## Why
 
 It's nice sometimes just to be able to see what's in the memory of a process
 and grep for interesting things without having to spin up GDB or do any other
@@ -14,7 +9,11 @@ crazy stuff. I haven't seen another a tool that dumps memory the way I want, so
 I made one. Also I was bored and felt like learning the ptrace API, so I
 figured this would be a nice tool to write.
 
-## How
+## Set up and Use
+
+Memdump should work on x86, x86_64, ARM, and probably other 32-bit
+and 64-bit architectures, as long as it's running on a
+unixy system that supports the PTRACE API.
 
 <pre>
 $ cc main.c memdump.c -o memdump
@@ -36,9 +35,9 @@ $ strings -f output/*.dump | grep your_password
 output/7668d000-7668f000.dump: your_password
 </pre>
 
-## What about Android?
+## Android
 
-You need the Android NDK with your platform's gcc binary in your PATH. Change
+To use on Android, you need the Android NDK with your platform's gcc binary in your PATH. Change
 architecture as needed. This may not work on all devices and OS versions, but
 it worked for me on Android 4.4 on an emulated and a real Nexus 4. You must run
 memdump as root.
