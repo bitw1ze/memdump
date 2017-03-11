@@ -190,8 +190,8 @@ static int write_dumpfile(const procmap_record *record, const void *data, size_t
         }
     }
     snprintf(dump_fn, sizeof(dump_fn), DUMP_FMT, 
-            opt_dirname, record->begin, record->end, record->offset,
-            record->read, record->write, record->exec, record->shared,
+            opt_dirname, record->begin, record->end, record->read,
+            record->write, record->exec, record->shared, record->offset,
             info ? info : "");
     free(info);
     dump_fh = fopen(dump_fn, "wb");
@@ -203,7 +203,8 @@ static int write_dumpfile(const procmap_record *record, const void *data, size_t
         fflush(dump_fh);
     }
     else {
-        fprintf(stderr, "[warning] failed to read "ADDR_FMT"\n", record->begin, record->end);
+        fprintf(stderr, "[warning] failed to read %p-%p\n",
+            (void *)record->begin, (void *)record->end);
     }
     fclose(dump_fh);
     printv("[+] wrote section \"%s\" to %s\n", record->info, dump_fn);

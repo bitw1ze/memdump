@@ -18,12 +18,11 @@
 #define WORD sizeof(long)
 #define BUFLEN 4096
 #define MAX_RECORDS 4096 
-#define ADDR_SEP "-"
 #define DUMP_DIR "%s/"
-#define ADDR_FMT "%0"ADDR_LEN"lx"ADDR_SEP"%0"ADDR_LEN"lx"
-#define MAPI_FMT ADDR_FMT " %c%c%c%c %0"ADDR_LEN"llx %02x:%02x %lu %255[^\n]s"
-#define MAPO_FMT ADDR_FMT " %c%c%c%c %0"ADDR_LEN"llx %02x:%02x %lu %s\n"
-#define DUMP_FMT DUMP_DIR ADDR_FMT ":%lld:%c%c%c%c:%s"
+#define ADDR_FMT 
+#define MAPI_FMT "%0"ADDR_LEN"lx-%0"ADDR_LEN"lx %c%c%c%c %0"ADDR_LEN"llx %02x:%02x %lu %255[^\n]s"
+#define MAPO_FMT "%0"ADDR_LEN"lx-%0"ADDR_LEN"lx %c%c%c%c %0"ADDR_LEN"llx %02x:%02x %lu %s\n"
+#define DUMP_FMT DUMP_DIR "%0"ADDR_LEN"lx:%0"ADDR_LEN"lx:%c%c%c%c:%lld:%s"
 
 typedef struct __procmap_record {
     long begin;
