@@ -91,6 +91,7 @@ void * fetch_memory(pid_t pid, const void *start, size_t len) {
     for (offset=0; offset<len; offset += WORD) {
         word = ptrace(PTRACE_PEEKTEXT, pid, (void *)(start+offset), NULL);
         if (errno) {
+            free(data);
             return NULL;
         }
         memcpy(data+offset, &word, WORD);
